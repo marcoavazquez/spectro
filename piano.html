@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JavaScript Piano</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        h1 {
+            margin-bottom: 30px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .piano {
+            position: relative;
+            display: flex;
+            background: #333;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            margin-bottom: 30px;
+        }
+
+        .key {
+            position: relative;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.1s ease;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .white-key {
+            width: 50px;
+            height: 200px;
+            background: linear-gradient(to bottom, #fff 0%, #f5f5f5 100%);
+            border: 2px solid #ddd;
+            border-radius: 0 0 8px 8px;
+            margin: 0 1px;
+            z-index: 1;
+        }
+
+        .white-key:hover {
+            background: linear-gradient(to bottom, #f0f0f0 0%, #e5e5e5 100%);
+            transform: translateY(2px);
+        }
+
+        .white-key.active {
+            background: linear-gradient(to bottom, #e0e0e0 0%, #d0d0d0 100%);
+            transform: translateY(4px);
+            box-shadow: inset 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .black-key {
+            width: 30px;
+            height: 120px;
+            background: linear-gradient(to bottom, #444 0%, #222 100%);
+            border: 1px solid #000;
+            border-radius: 0 0 6px 6px;
+            position: absolute;
+            z-index: 2;
+            color: #ccc;
+        }
+
+        .black-key:hover {
+            background: linear-gradient(to bottom, #555 0%, #333 100%);
+            transform: translateY(2px);
+        }
+
+        .black-key.active {
+            background: linear-gradient(to bottom, #333 0%, #111 100%);
+            transform: translateY(4px);
+            box-shadow: inset 0 4px 8px rgba(0,0,0,0.3);
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+
+        label {
+            font-size: 14px;
+            color: #ccc;
+        }
+
+        input[type="range"] {
+            width: 100px;
+        }
+
+        select, button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 5px;
+            background: #444;
+            color: white;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        select:hover, button:hover {
+            background: #555;
+        }
+
+        .keyboard-hint {
+            text-align: center;
+            color: #aaa;
+            font-size: 14px;
+            margin-top: 20px;
+        }
+
+        .wave-display {
+            width: 400px;
+            height: 100px;
+            background: #222;
+            border-radius: 8px;
+            margin: 20px 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .wave-canvas {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎹 JavaScript Piano</h1>
+    
+    <div class="controls">
+        <div class="control-group">
+            <label>Wave Type</label>
+            <select id="waveType">
+                <option value="sine">Sine</option>
+                <option value="square">Square</option>
+                <option value="sawtooth">Sawtooth</option>
+                <option value="triangle">Triangle</option>
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <label>Volume</label>
+            <input type="range" id="volume" min="0" max="1" step="0.1" value="0.3">
+        </div>
+        
+        <div class="control-group">
+            <label>Attack</label>
+            <input type="range" id="attack" min="0" max="1" step="0.1" value="0.1">
+        </div>
+        
+        <div class="control-group">
+            <label>Release</label>
+            <input type="range" id="release" min="0" max="2" step="0.1" value="0.5">
+        </div>
+        
+        <div class="control-group">
+            <label>Octave</label>
+            <select id="octave">
+                <option value="3">3</option>
+                <option value="4" selected>4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="wave-display">
+        <canvas class="wave-canvas" id="waveCanvas" width="400" height="100"></canvas>
+    </div>
+
+    <div class="piano" id="piano">
+        <!-- Keys will be generated by JavaScript -->
+    </div>
+
+    <div class="keyboard-hint">
+        Use keyboard: A S D F G H J (white keys) | W E T Y U (black keys) | Z X for octave change
+    </div>
+
+    <script>
+        class Piano {
+            constructor() {
+                this.audioContext = null;
+                this.oscillators = new Map();
+                this.gainNodes = new Map();
+                this.analyser = null;
+                this.dataArray = null;
+                this.animationId = null;
+                
+                this.initAudioContext();
+                this.setupPiano();
+                this.setupControls();
+                this.setupKeyboardEvents();
+                this.setupWaveDisplay();
+            }
+
+            initAudioContext() {
+                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // Create analyser for wave visualization
+                this.analyser = this.audioContext.createAnalyser();
+                this.analyser.fftSize = 2048;
+                this.analyser.connect(this.audioContext.destination);
+                this.dataArray = new Uint8Array(this.analyser.frequencyBinCount);
+            }
+
+            getNoteFrequency(note, octave) {
+                const noteFrequencies = {
+                    'C': 261.63, 'C#': 277.18, 'D': 293.66, 'D#': 311.13,
+                    'E': 329.63, 'F': 349.23, 'F#': 369.99, 'G': 392.00,
+                    'G#': 415.30, 'A': 440.00, 'A#': 466.16, 'B': 493.88
+                };
+                
+                const baseFreq = noteFrequencies[note];
+                return baseFreq * Math.pow(2, octave - 4);
+            }
+
+            setupPiano() {
+                const piano = document.getElementById('piano');
+                const whiteKeys = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+                const blackKeys = ['C#', 'D#', null, 'F#', 'G#', 'A#', null];
+                const keyboardMap = {
+                    'a': 'C', 's': 'D', 'd': 'E', 'f': 'F', 'g': 'G', 'h': 'A', 'j': 'B',
+                    'w': 'C#', 'e': 'D#', 't': 'F#', 'y': 'G#', 'u': 'A#'
+                };
+
+                // Create white keys
+                whiteKeys.forEach((note, index) => {
+                    const key = document.createElement('div');
+                    key.className = 'key white-key';
+                    key.dataset.note = note;
+                    key.textContent = note;
+                    
+                    // Add keyboard hint
+                    const keyboardKey = Object.keys(keyboardMap).find(k => keyboardMap[k] === note);
+                    if (keyboardKey) {
+                        key.innerHTML = `${note}<br><small>${keyboardKey.toUpperCase()}</small>`;
+                    }
+                    
+                    key.addEventListener('mousedown', () => this.playNote(note));
+                    key.addEventListener('mouseup', () => this.stopNote(note));
+                    key.addEventListener('mouseleave', () => this.stopNote(note));
+                    
+                    piano.appendChild(key);
+                });
+
+                // Create black keys
+                blackKeys.forEach((note, index) => {
+                    if (note) {
+                        const key = document.createElement('div');
+                        key.className = 'key black-key';
+                        key.dataset.note = note;
+                        key.textContent = note;
+                        
+                        // Add keyboard hint
+                        const keyboardKey = Object.keys(keyboardMap).find(k => keyboardMap[k] === note);
+                        if (keyboardKey) {
+                            key.innerHTML = `${note}<br><small>${keyboardKey.toUpperCase()}</small>`;
+                        }
+                        
+                        key.style.left = `${(index * 51) + 35}px`;
+                        
+                        key.addEventListener('mousedown', () => this.playNote(note));
+                        key.addEventListener('mouseup', () => this.stopNote(note));
+                        key.addEventListener('mouseleave', () => this.stopNote(note));
+                        
+                        piano.appendChild(key);
+                    }
+                });
+            }
+
+            async playNote(note) {
+                if (this.audioContext.state === 'suspended') {
+                    await this.audioContext.resume();
+                }
+
+                // Stop existing note if playing
+                this.stopNote(note);
+
+                const octave = parseInt(document.getElementById('octave').value);
+                const frequency = this.getNoteFrequency(note, octave);
+                const waveType = document.getElementById('waveType').value;
+                const volume = parseFloat(document.getElementById('volume').value);
+                const attack = parseFloat(document.getElementById('attack').value);
+
+                // Create oscillator
+                const oscillator = this.audioContext.createOscillator();
+                const gainNode = this.audioContext.createGain();
+
+                oscillator.type = waveType;
+                oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+
+                // ADSR envelope
+                gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+                gainNode.gain.linearRampToValueAtTime(volume, this.audioContext.currentTime + attack);
+
+                // Connect audio graph
+                oscillator.connect(gainNode);
+                gainNode.connect(this.analyser);
+
+                oscillator.start();
+
+                // Store references
+                this.oscillators.set(note, oscillator);
+                this.gainNodes.set(note, gainNode);
+
+                // Visual feedback
+                const keyElement = document.querySelector(`[data-note="${note}"]`);
+                if (keyElement) {
+                    keyElement.classList.add('active');
+                }
+
+                // Start wave visualization if not already running
+                if (!this.animationId) {
+                    this.startWaveVisualization();
+                }
+            }
+
+            stopNote(note) {
+                const oscillator = this.oscillators.get(note);
+                const gainNode = this.gainNodes.get(note);
+
+                if (oscillator && gainNode) {
+                    const release = parseFloat(document.getElementById('release').value);
+                    const currentTime = this.audioContext.currentTime;
+
+                    // Release envelope
+                    gainNode.gain.cancelScheduledValues(currentTime);
+                    gainNode.gain.setValueAtTime(gainNode.gain.value, currentTime);
+                    gainNode.gain.linearRampToValueAtTime(0, currentTime + release);
+
+                    // Stop oscillator after release
+                    oscillator.stop(currentTime + release);
+
+                    // Clean up
+                    setTimeout(() => {
+                        this.oscillators.delete(note);
+                        this.gainNodes.delete(note);
+                        
+                        // Stop visualization if no notes playing
+                        if (this.oscillators.size === 0) {
+                            this.stopWaveVisualization();
+                        }
+                    }, release * 1000);
+                }
+
+                // Remove visual feedback
+                const keyElement = document.querySelector(`[data-note="${note}"]`);
+                if (keyElement) {
+                    keyElement.classList.remove('active');
+                }
+            }
+
+            setupControls() {
+                // Real-time control updates
+                document.getElementById('waveType').addEventListener('change', () => {
+                    this.oscillators.forEach(osc => {
+                        osc.type = document.getElementById('waveType').value;
+                    });
+                });
+            }
+
+            setupKeyboardEvents() {
+                const keyMap = {
+                    'a': 'C', 's': 'D', 'd': 'E', 'f': 'F', 'g': 'G', 'h': 'A', 'j': 'B',
+                    'w': 'C#', 'e': 'D#', 't': 'F#', 'y': 'G#', 'u': 'A#'
+                };
+
+                const pressedKeys = new Set();
+
+                document.addEventListener('keydown', (event) => {
+                    const key = event.key.toLowerCase();
+                    
+                    if (key === 'z') {
+                        // Octave down
+                        const octaveSelect = document.getElementById('octave');
+                        const currentOctave = parseInt(octaveSelect.value);
+                        if (currentOctave > 3) {
+                            octaveSelect.value = currentOctave - 1;
+                        }
+                        return;
+                    }
+                    
+                    if (key === 'x') {
+                        // Octave up
+                        const octaveSelect = document.getElementById('octave');
+                        const currentOctave = parseInt(octaveSelect.value);
+                        if (currentOctave < 6) {
+                            octaveSelect.value = currentOctave + 1;
+                        }
+                        return;
+                    }
+
+                    if (keyMap[key] && !pressedKeys.has(key)) {
+                        pressedKeys.add(key);
+                        this.playNote(keyMap[key]);
+                    }
+                });
+
+                document.addEventListener('keyup', (event) => {
+                    const key = event.key.toLowerCase();
+                    if (keyMap[key]) {
+                        pressedKeys.delete(key);
+                        this.stopNote(keyMap[key]);
+                    }
+                });
+            }
+
+            setupWaveDisplay() {
+                this.canvas = document.getElementById('waveCanvas');
+                this.canvasCtx = this.canvas.getContext('2d');
+            }
+
+            startWaveVisualization() {
+                const draw = () => {
+                    this.animationId = requestAnimationFrame(draw);
+                    
+                    this.analyser.getByteTimeDomainData(this.dataArray);
+                    
+                    this.canvasCtx.fillStyle = '#222';
+                    this.canvasCtx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                    
+                    this.canvasCtx.lineWidth = 2;
+                    this.canvasCtx.strokeStyle = '#00ff88';
+                    this.canvasCtx.beginPath();
+                    
+                    const sliceWidth = this.canvas.width / this.dataArray.length;
+                    let x = 0;
+                    
+                    for (let i = 0; i < this.dataArray.length; i++) {
+                        const v = this.dataArray[i] / 128.0;
+                        const y = v * this.canvas.height / 2;
+                        
+                        if (i === 0) {
+                            this.canvasCtx.moveTo(x, y);
+                        } else {
+                            this.canvasCtx.lineTo(x, y);
+                        }
+                        
+                        x += sliceWidth;
+                    }
+                    
+                    this.canvasCtx.stroke();
+                };
+                
+                draw();
+            }
+
+            stopWaveVisualization() {
+                if (this.animationId) {
+                    cancelAnimationFrame(this.animationId);
+                    this.animationId = null;
+                }
+                
+                // Clear canvas
+                this.canvasCtx.fillStyle = '#222';
+                this.canvasCtx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            }
+        }
+
+        // Initialize piano when page loads
+        window.addEventListener('load', () => {
+            new Piano();
+        });
+    </script>
+</body>
+</html>
