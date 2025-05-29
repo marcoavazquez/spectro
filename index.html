@@ -17,7 +17,7 @@
             border-radius: 16px;
             display: block;
             margin: 0 auto;
-            width: 100%;
+            width: 99%;
             position: relative;
         }
         .canvas-container {
@@ -64,7 +64,7 @@
         <button onclick="startAudio()">Use Microphone</button>
     </div>
     <div class="canvas-container">
-        <canvas id="canvas" width="1024" height="400"></canvas>
+        <canvas id="canvas" width="1200" height="400"></canvas>
     </div>
 
     <script>
@@ -175,7 +175,6 @@
             // Generate vertices for bars
             const positions = [];
             const colors = [];
-
             for (let i = 0; i < barCount; i++) {
                 const value = (frequencyData[i] / 255) || 0.001; // Normalize to 0-1
                 const barHeight = value * height;
@@ -192,10 +191,19 @@
                 positions.push(x + barWidth, (height / 2) - (barHeight / 2)); // top right
                 positions.push(x, (height / 2 ) - (barHeight / 2)); // top left
 
+                // positions.push(x, height + barHeight);           // bottom left
+                // positions.push(x + barWidth, height + barHeight); // bottom right
+                // positions.push(x, height - barHeight); // top left
+
+                // // Triangle 2
+                // positions.push(x + barWidth, height + barHeight); // bottom right
+                // positions.push(x + barWidth, height - barHeight); // top right
+                // positions.push(x, height - barHeight); // top left
+
                 // Color based on frequency and amplitude
-                const hue = (i / barCount) * 0.8; // 0 to 0.8 (red to blue)
-                const saturation = 0.8;
-                const lightness = value * 0.8 + 0.2; // Minimum brightness
+                const hue = (i / barCount) * 1; // 0 to 0.8 (red to blue)
+                const saturation = 1;
+                const lightness = value * 0.5 + 0.2; // Minimum brightness
 
                 // Convert HSL to RGB
                 const rgb = hslToRgb(hue, saturation, lightness);
@@ -259,7 +267,18 @@
             
             if (isUsingAudio && analyser) {
                 analyser.getByteFrequencyData(dataArray);
-                data = dataArray;
+                const sampleRate = audioContext.sampleRate;
+                const frequencyResolution = sampleRate / analyser.fftSize;
+                data = dataArray.filter((_, i) => {
+                    const frequency = i * frequencyResolution;
+                    if (frequency < 4_000 && frequency > 25) {
+                        return true
+                    }
+                    if (frequency > 0 && i % 10 === 0 && frequency < 16_000) {
+                        return true;
+                    };
+                    return false;
+                });;
             } else {
                 data = generateDemoData();
             }
@@ -291,13 +310,8 @@
                 source.connect(analyser);
                 const sampleRate = audioContext.sampleRate;
                 const frequencyResolution = sampleRate / analyser.fftSize;
-                
-                dataArray = new Uint8Array(analyser.frequencyBinCount).filter((_, i) => {
-                    const frequency = i * frequencyResolution;
-                    return frequency > 25 && frequency < 15_000;
-                });
+                dataArray = new Uint8Array(analyser.frequencyBinCount)
                 isUsingAudio = true;
-                
                 stopDemo();
                 animate();
             } catch (err) {
