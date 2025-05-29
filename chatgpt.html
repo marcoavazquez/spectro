@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audio Spectrogram Viewer</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 0;
+      background-color: #000;
+      color: #fff;
+    }
+    canvas {
+      border: 1px solid #444;
+      display: block;
+      margin: 0 auto;
+    }
+    select {
+      padding: 5px;
+      background-color: #222;
+      color: #fff;
+      border: 1px solid #555;
+    }
+    .other {
+      display: flex;
+      /* flex-wrap: wrap; */
+      align-items: center;
+    }
+    .circle {
+      width: 250px;
+      height: 250px;
+    }
+  </style>
+</head>
+<body>
+  <select id="styleSelector">
+    <option value="rainbow">Rainbow</option>
+    <option value="grayscale">Grayscale</option>
+    <option value="heatmap">Heatmap</option>
+  </select>
+  <!-- <canvas id="spectrogram" width="1024" height="2"></canvas> -->
+  <div class="other" id="other">
+  </div>
+
+  <script>
+    const other = document.getElementById('other');
+
+    // const canvas = document.getElementById('spectrogram');
+    // const ctx = canvas.getContext('2d');
+    const styleSelector = document.getElementById('styleSelector');
+    // const height = canvas.height;
+
+    let currentStyle = 'rainbow';
+    styleSelector.addEventListener('change', () => {
+      currentStyle = styleSelector.value;
+    });
+
+    function getColor(value, style) {
+      const v = value / 255;
+      switch (style) {
+        case 'grayscale':
+          return `rgb(${value}, ${value}, ${value})`;
+        case 'rainbow':
+          const hue = v * 360;
+          return `hsl(${hue}, 100%, 50%)`;
+        case 'heatmap':
+          return `rgb(${value}, ${value * 0.4}, 0)`;
+        default:
+          return `rgb(${value}, ${value}, ${value})`;
+      }
+    }
+
+    async function setupAudio() {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      const sampleRate = audioCtx.sampleRate;
+      analyser.fftSize = 2048;;
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      source.connect(analyser);
+
+      let offsetX = 0;
+
+      const frequencyResolution = sampleRate / analyser.fftSize;
+
+      let minX = 0;
+      const validIndex = []
+      for (x = 0; x < bufferLength; x++) {
+        const frequency = x * frequencyResolution;
+        if (frequency > 30 && frequency < 15_000) {//frequency < 440 + 15) {
+          console.log(`Frequency at index ${x}:`, frequency, 'Hz');
+          minX = x * 2;
+          validIndex.push(x);
+        } 
+        // else {
+        //   if (frequency < 20_000) {
+        //     const isMult = x === minX
+        //     if (isMult || x === bufferLength - 1 || x === minX - Math.round(minX / 4)) {
+        //       console.log(`Frequency at index ${x}:`, frequency, 'Hz');
+        //       validIndex.push(x);
+        //       if (isMult) {
+        //         minX = x * 2;
+        //       }
+        //     }
+        //   }
+        // }
+      }
+
+
+      const circles = validIndex.map(function (freq, idx) {
+        const circle = document.createElement('div');
+        circle.classList.add('circle');
+        other.appendChild(circle);
+        return circle;
+      })
+
+      function draw() {
+        analyser.getByteFrequencyData(dataArray);
+
+        // ctx.drawImage(canvas, -1, 0);
+        // for (let y = 0; y < bufferLength; y++) {
+        //   const value = dataArray[y];
+        //   ctx.fillStyle = getColor(value, currentStyle);
+        //   ctx.fillRect(canvas.width - 1, height - y, 1, 1);
+        // }
+        validIndex.forEach((y, index) => {
+          const value = dataArray[y];
+          // ctx.fillStyle = getColor(value, currentStyle);
+          // ctx.fillRect(canvas.width - 1, height - index * 1, 1, 1);
+          circles[index].style.backgroundColor = getColor(value, currentStyle);
+          circles[index].style.boxShadow = `0 0 ${value}px ${getColor(value, currentStyle)}`;
+          // circles[index].style.transform = `translateY(${value}px)`;
+          circles[index].style.height = `${value * 2}px`;
+          // circles[index].style.opacity = `${value / 128}`;
+        });
+
+        requestAnimationFrame(draw);
+      }
+      draw();
+    }
+
+    setupAudio().catch(err => console.error('Audio setup error:', err));
+  </script>
+</body>
+</html>
