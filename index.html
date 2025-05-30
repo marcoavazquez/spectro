@@ -26,9 +26,8 @@
         .canvas-container::after {
             content: '';
             display: block;
-            background-image: linear-gradient(0deg, rgb(0 0 0 / 0.2) 1px, transparent 1px),
-                            linear-gradient(90deg, rgb(0 0 0 / 0.2) 1px, transparent 1px);
-            background-size: 3px 3px;
+            background-image: linear-gradient(0deg, rgb(0 0 0 / 0.3) 1px, transparent 1px);
+            background-size: 4px 4px;
             width: 100%;
             height: 100%;
             position: absolute;
@@ -72,6 +71,9 @@
         let animationId;
         let audioContext, analyser, dataArray;
         let isUsingAudio = true;
+        const canvas = document.getElementById('canvas');
+        const width = canvas.width;
+        const height = canvas.height;
 
         // Vertex shader
         const vertexShaderSource = `
@@ -166,9 +168,6 @@
         }
 
         function drawSpectrogram(frequencyData) {
-            const canvas = document.getElementById('canvas');
-            const width = canvas.width;
-            const height = canvas.height;
             const barCount = frequencyData.length;
             const barWidth = width / barCount;
 
@@ -176,19 +175,19 @@
             const positions = [];
             const colors = [];
             for (let i = 0; i < barCount; i++) {
-                const value = (frequencyData[i] / 255) || 0.001; // Normalize to 0-1
+                const value = (frequencyData[i] / 255) || 0.005; // Normalize to 0-1
                 const barHeight = value * height;
                 const x = i * barWidth;
 
                 // Two triangles per bar (rectangle)
                 // Triangle 1
                 positions.push(x, (height / 2) + (barHeight / 2));           // bottom left
-                positions.push(x + barWidth, (height / 2) + (barHeight / 2)); // bottom right
+                positions.push(x + barWidth - 1, (height / 2) + (barHeight / 2)); // bottom right
                 positions.push(x, (height / 2) - (barHeight / 2)); // top left
 
                 // Triangle 2
-                positions.push(x + barWidth, (height / 2) + (barHeight / 2)); // bottom right
-                positions.push(x + barWidth, (height / 2) - (barHeight / 2)); // top right
+                positions.push(x + barWidth - 1, (height / 2) + (barHeight / 2)); // bottom right
+                positions.push(x + barWidth - 1, (height / 2) - (barHeight / 2)); // top right
                 positions.push(x, (height / 2 ) - (barHeight / 2)); // top left
 
                 // positions.push(x, height + barHeight);           // bottom left
@@ -201,9 +200,9 @@
                 // positions.push(x, height - barHeight); // top left
 
                 // Color based on frequency and amplitude
-                const hue = (i / barCount) * 1; // 0 to 0.8 (red to blue)
+                const hue = (i / barCount) * 0.9; // 0 to 0.8 (red to blue)
                 const saturation = 1;
-                const lightness = value * 0.5 + 0.2; // Minimum brightness
+                const lightness = value * 0.25 + 0.3; // Minimum brightness
 
                 // Convert HSL to RGB
                 const rgb = hslToRgb(hue, saturation, lightness);
@@ -274,10 +273,7 @@
                     if (frequency < 6_000 && frequency > 25) {
                         return true
                     }
-                    if (frequency > 0 && i % 5 === 0 && frequency < 16_000) {
-                        return true;
-                    };
-                    return false;
+                    return frequency > 0 && i % 5 === 0 && frequency < 16_000
                 });;
             } else {
                 data = generateDemoData();
