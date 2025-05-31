@@ -270,11 +270,11 @@
                 const frequencyResolution = sampleRate / analyser.fftSize;
                 data = dataArray.filter((_, i) => {
                     const frequency = i * frequencyResolution;
-                    if (frequency < 6_000 && frequency > 25) {
+                    if (frequency < 4_000 && frequency > 30) {
                         return true
                     }
-                    return frequency > 0 && i % 5 === 0 && frequency < 16_000
-                });;
+                    return frequency > 0 && i % 5 === 0 && frequency < 14_000
+                });
             } else {
                 data = generateDemoData();
             }
