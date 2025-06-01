@@ -36,11 +36,11 @@
         }
         .controls {
             text-align: center;
-            margin: 2px 4px;
+            margin: 2px;
         }
-        button {
+        button, select {
             padding: 10px 20px;
-            margin: 5px;
+            margin: 2px 0;
             background: #012;
             color: #ccc;
             border: none;
@@ -59,8 +59,17 @@
 <body>
     <div class="controls">
         <!-- <button onclick="startDemo()">Start Demo</button> -->
-        <button onclick="stopDemo()">Stop</button>
-        <button onclick="startAudio()">Use Microphone</button>
+        <button onclick="prev()">⏮️</button>
+        <button onclick="startAudio()">▶️</button>
+        <button onclick="stopDemo()">⏹️</button>
+        <button onclick="next()">⏭️</button>
+        <select id="size" onchange="changeFFTSize(this.value)">
+            <option value="256">x1</option>
+            <option value="512">x2</option>
+            <option value="1024">x3</option>
+            <option value="2048">x4</option>
+            <option value="4096">x5</option>
+        </select>
     </div>
     <div class="canvas-container">
         <canvas id="canvas" width="1200" height="400"></canvas>
@@ -71,9 +80,15 @@
         let animationId;
         let audioContext, analyser, dataArray;
         let isUsingAudio = true;
+        let current = 0;
+        let fftSize = 256;
         const canvas = document.getElementById('canvas');
         const width = canvas.width;
         const height = canvas.height;
+        const animations = [
+            animation1,
+            animation2,
+        ]
 
         // Vertex shader
         const vertexShaderSource = `
@@ -153,17 +168,20 @@
             return true;
         }
 
+        function prev() {
+            current = (current - 1 + animations.length) % animations.length;
+        }
+        function next() {
+            current = (current + 1) % animations.length;
+        }
+        function changeFFTSize(size) {
+            fftSize = parseInt(size);
+            stopDemo()
+            startAudio()
+        }
+
         function generateDemoData() {
-            const data = new Uint8Array(512); // 128 frequency bins
-            const time = Date.now() * 0.001;
-            
-            for (let i = 0; i < data.length; i++) {
-                // Create interesting demo patterns
-                const freq1 = Math.sin(time * 2 + i * 0.1) * 0.5 + 0.5;
-                const freq2 = Math.sin(time * 0.5 + i * 0.05) * 0.3 + 0.3;
-                const noise = Math.random() * 0.2;
-                data[i] = Math.floor((freq1 + freq2 + noise) * 255);
-            }
+            const data = new Uint8Array(128).fill(0);
             return data;
         }
 
@@ -174,44 +192,8 @@
             // Generate vertices for bars
             const positions = [];
             const colors = [];
-            for (let i = 0; i < barCount; i++) {
-                const value = (frequencyData[i] / 255) || 0.005; // Normalize to 0-1
-                const barHeight = value * height;
-                const x = i * barWidth;
-
-                // Two triangles per bar (rectangle)
-                // Triangle 1
-                positions.push(x, (height / 2) + (barHeight / 2));           // bottom left
-                positions.push(x + barWidth - 1, (height / 2) + (barHeight / 2)); // bottom right
-                positions.push(x, (height / 2) - (barHeight / 2)); // top left
-
-                // Triangle 2
-                positions.push(x + barWidth - 1, (height / 2) + (barHeight / 2)); // bottom right
-                positions.push(x + barWidth - 1, (height / 2) - (barHeight / 2)); // top right
-                positions.push(x, (height / 2 ) - (barHeight / 2)); // top left
-
-                // positions.push(x, height + barHeight);           // bottom left
-                // positions.push(x + barWidth, height + barHeight); // bottom right
-                // positions.push(x, height - barHeight); // top left
-
-                // // Triangle 2
-                // positions.push(x + barWidth, height + barHeight); // bottom right
-                // positions.push(x + barWidth, height - barHeight); // top right
-                // positions.push(x, height - barHeight); // top left
-
-                // Color based on frequency and amplitude
-                const hue = (i / barCount) * 0.9; // 0 to 0.8 (red to blue)
-                const saturation = 1;
-                const lightness = value * 0.25 + 0.3; // Minimum brightness
-
-                // Convert HSL to RGB
-                const rgb = hslToRgb(hue, saturation, lightness);
-                
-                // Add color for each vertex (6 vertices per bar)
-                for (let j = 0; j < 6; j++) {
-                    colors.push(rgb[0], rgb[1], rgb[2]);
-                }
-            }
+            
+            animations[current](frequencyData, barCount, barWidth, positions, colors);
 
             // Update position buffer
             gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
@@ -243,6 +225,70 @@
 
             // Draw all triangles
             gl.drawArrays(gl.TRIANGLES, 0, positions.length / 2);
+        }
+
+        function animation1(frequencyData, barCount, barWidth, positions, colors) {
+            for (let i = 0; i < barCount; i++) {
+                const value = (frequencyData[i] / 255) || 0.005; // Normalize to 0-1
+                const barHeight = value * height;
+                const x = i * barWidth;
+
+                // Two triangles per bar (rectangle)
+                // Triangle 1
+                positions.push(x, (height / 2) + (barHeight / 2));           // bottom left
+                positions.push(x + barWidth - 1, (height / 2) + (barHeight / 2)); // bottom right
+                positions.push(x, (height / 2) - (barHeight / 2)); // top left
+
+                // Triangle 2
+                positions.push(x + barWidth - 1, (height / 2) + (barHeight / 2)); // bottom right
+                positions.push(x + barWidth - 1, (height / 2) - (barHeight / 2)); // top right
+                positions.push(x, (height / 2 ) - (barHeight / 2)); // top left
+
+                // Color based on frequency and amplitude
+                const hue = (i / barCount) * 0.9; // 0 to 0.8 (red to blue)
+                const saturation = 1;
+                const lightness = value * 0.25 + 0.3; // Minimum brightness
+
+                // Convert HSL to RGB
+                const rgb = hslToRgb(hue, saturation, lightness);
+                
+                // Add color for each vertex (6 vertices per bar)
+                for (let j = 0; j < 6; j++) {
+                    colors.push(rgb[0], rgb[1], rgb[2]);
+                }
+            }
+        }
+
+        function animation2(frequencyData, barCount, barWidth, positions, colors) {
+            for (let i = 0; i < barCount; i++) {
+                const value = (frequencyData[i] / 255) || 0.001; // Normalize to 0-1
+                const barHeight = value * height;
+                const x = i * barWidth;
+
+                // Two triangles per bar (rectangle)
+                // Triangle 1
+                positions.push(x, height + barHeight);           // bottom left
+                positions.push(x + barWidth, height + barHeight); // bottom right
+                positions.push(x, height - barHeight); // top left
+
+                // Triangle 2
+                positions.push(x + barWidth, height + barHeight); // bottom right
+                positions.push(x + barWidth, height - barHeight); // top right
+                positions.push(x, height - barHeight); // top left
+
+                // Color based on frequency and amplitude
+                const hue = (i / barCount) * 0.9; // 0 to 0.8 (red to blue)
+                const saturation = 1;
+                const lightness = value * 0.25 + 0.3; // Minimum brightness
+
+                // Convert HSL to RGB
+                const rgb = hslToRgb(hue, saturation, lightness);
+                
+                // Add color for each vertex (6 vertices per bar)
+                for (let j = 0; j < 6; j++) {
+                    colors.push(rgb[0], rgb[1], rgb[2]);
+                }
+            }
         }
 
         function hslToRgb(h, s, l) {
@@ -302,7 +348,7 @@
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 const source = audioContext.createMediaStreamSource(stream);
                 analyser = audioContext.createAnalyser();
-                analyser.fftSize = 2048;
+                analyser.fftSize = fftSize;
                 source.connect(analyser);
                 const sampleRate = audioContext.sampleRate;
                 const frequencyResolution = sampleRate / analyser.fftSize;
